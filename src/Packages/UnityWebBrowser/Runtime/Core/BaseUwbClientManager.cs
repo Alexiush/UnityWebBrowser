@@ -26,29 +26,53 @@ namespace VoltstroStudios.UnityWebBrowser.Core
         [Tooltip("The browser client, what handles the communication between the UWB engine and Unity")]
         public WebBrowserClient browserClient = new();
 
-        private void Start()
+        public bool Initialized { get; private set; }
+
+        public void Initialize()
         {
-            //Start the browser client
+            if (Initialized && !browserClient.HasDisposed)
+            {
+                return;
+            }
+
             browserClient.Init();
+            Initialized = true;
 
             OnStart();
         }
 
         private void Update()
         {
+            if (!Initialized)
+            {
+                return;
+            }
+
             browserClient.UpdateFps();
         }
 
         private void FixedUpdate()
         {
+            if (!Initialized)
+            {
+                return;
+            }
+
             browserClient.LoadTextureData();
             OnFixedUpdate();
         }
 
         private void OnDestroy()
         {
+            if (!Initialized)
+            {
+                return;
+            }
+
             browserClient.Dispose();
             OnDestroyed();
+
+            Initialized = false;
         }
 
         /// <summary>

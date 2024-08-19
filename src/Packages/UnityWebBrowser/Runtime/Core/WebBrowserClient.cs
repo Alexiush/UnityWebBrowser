@@ -82,7 +82,10 @@ namespace VoltstroStudios.UnityWebBrowser.Core
             set
             {
                 resolution = value;
-                Resize(value);
+                if (HasInitialized)
+                {
+                    Resize(value);
+                }
             }
         }
 
@@ -291,7 +294,9 @@ namespace VoltstroStudios.UnityWebBrowser.Core
                 Dispose();
                 return;
             }
-            
+
+            HasDisposed = false;
+
             //Get the path to the UWB process we are using and make sure it exists
             string browserEnginePath = WebBrowserUtils.GetBrowserEngineProcessPath(engine);
             logger.Debug($"Starting browser engine process from '{browserEnginePath}'...");
@@ -927,7 +932,7 @@ namespace VoltstroStudios.UnityWebBrowser.Core
                 textureData = BrowserTexture.GetRawTextureData<byte>();
                 communicationsManager.Resize(newResolution);
 
-                NativeArray<byte>.Copy(textureCopy, 0, textureData, 0, textureCopy.Length);
+                NativeArray<byte>.Copy(textureCopy, 0, textureData, 0, Math.Min(textureCopy.Length, textureData.Length));
 
                 nextTextureData.Dispose();
                 nextTextureData = new NativeArray<byte>(textureData.ToArray(), Allocator.Persistent);

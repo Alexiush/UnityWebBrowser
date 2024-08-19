@@ -15,5 +15,9 @@ namespace VoltstroStudios.UnityWebBrowser
     [HelpURL("https://github.com/Voltstro-Studios/UnityWebBrowser")]
     public sealed class WebBrowserUIBasic : RawImageUwbClientInputHandler
     {
+        private void Start()
+        {
+            Initialize();
+        }
     }
 }
