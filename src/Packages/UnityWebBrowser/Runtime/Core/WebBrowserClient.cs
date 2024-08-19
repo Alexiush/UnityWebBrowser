@@ -6,6 +6,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -920,9 +921,13 @@ namespace VoltstroStudios.UnityWebBrowser.Core
 
             lock (resizeLock)
             {
+                var textureCopy = BrowserTexture.GetRawTextureData<byte>().ToArray();
+
                 BrowserTexture.Reinitialize((int)newResolution.Width, (int)newResolution.Height);
                 textureData = BrowserTexture.GetRawTextureData<byte>();
                 communicationsManager.Resize(newResolution);
+
+                NativeArray<byte>.Copy(textureCopy, 0, textureData, 0, textureCopy.Length);
 
                 nextTextureData.Dispose();
                 nextTextureData = new NativeArray<byte>(textureData.ToArray(), Allocator.Persistent);
