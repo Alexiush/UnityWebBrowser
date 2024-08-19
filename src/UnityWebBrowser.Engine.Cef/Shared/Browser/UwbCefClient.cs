@@ -173,15 +173,41 @@ internal class UwbCefClient : CefClient, IDisposable
     }
 
     /// <summary>
+    /// State of mouse click events that needs to be persisted for dragging
+    /// </summary>
+    private CefEventFlags Modifiers = CefEventFlags.None;
+
+    private void UpdateModifiers(MouseClickEvent mouseClickEvent)
+    {
+        var flag = mouseClickEvent.MouseClickType switch
+        {
+            MouseClickType.Left => CefEventFlags.LeftMouseButton,
+            MouseClickType.Right => CefEventFlags.RightMouseButton,
+            MouseClickType.Middle => CefEventFlags.MiddleMouseButton,
+            _ => throw new ArgumentException("Click event must be one of 3 states")
+        };
+
+        if (mouseClickEvent.MouseEventType == MouseEventType.Up)
+        {
+            Modifiers &= ~flag;
+        }
+        else
+        {
+            Modifiers |= flag;
+        }
+    }
+
+    /// <summary>
     ///     Process a <see cref="VoltstroStudios.UnityWebBrowser.Shared.Events.MouseMoveEvent" />
     /// </summary>
-    /// <param name="mouseEvent"></param>
-    public void ProcessMouseMoveEvent(MouseMoveEvent mouseEvent)
+    /// <param name="mouseMoveEvent"></param>
+    public void ProcessMouseMoveEvent(MouseMoveEvent mouseMoveEvent)
     {
         MouseMoveEvent(new CefMouseEvent
         {
-            X = mouseEvent.MouseX,
-            Y = mouseEvent.MouseY
+            X = mouseMoveEvent.MouseX,
+            Y = mouseMoveEvent.MouseY,
+            Modifiers = Modifiers
         });
     }
 
@@ -191,11 +217,14 @@ internal class UwbCefClient : CefClient, IDisposable
     /// <param name="mouseClickEvent"></param>
     public void ProcessMouseClickEvent(MouseClickEvent mouseClickEvent)
     {
+        UpdateModifiers(mouseClickEvent);
+
         MouseClickEvent(new CefMouseEvent
             {
                 X = mouseClickEvent.MouseX,
-                Y = mouseClickEvent.MouseY
-            }, mouseClickEvent.MouseClickCount,
+                Y = mouseClickEvent.MouseY,
+                Modifiers = Modifiers
+        }, mouseClickEvent.MouseClickCount,
             (CefMouseButtonType)mouseClickEvent.MouseClickType,
             mouseClickEvent.MouseEventType == MouseEventType.Up);
     }
@@ -209,7 +238,8 @@ internal class UwbCefClient : CefClient, IDisposable
         MouseScrollEvent(new CefMouseEvent
         {
             X = mouseScrollEvent.MouseX,
-            Y = mouseScrollEvent.MouseY
+            Y = mouseScrollEvent.MouseY,
+            Modifiers = Modifiers
         }, mouseScrollEvent.MouseScroll);
     }
 

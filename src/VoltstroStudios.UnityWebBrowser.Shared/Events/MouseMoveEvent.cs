@@ -19,4 +19,14 @@ public struct MouseMoveEvent
     ///     The Y position the mouse moved to
     /// </summary>
     public int MouseY { get; set; }
+
+    /// <summary>
+    ///     What was the <see cref="MouseClickType" />
+    /// </summary>
+    public MouseClickType MouseClickType { get; set; }
+
+    /// <summary>
+    ///     What was the <see cref="MouseEventType" />
+    /// </summary>
+    public MouseEventType MouseEventType { get; set; }
 }
