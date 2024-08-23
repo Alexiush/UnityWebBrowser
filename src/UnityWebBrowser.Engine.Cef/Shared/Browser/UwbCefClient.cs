@@ -137,10 +137,82 @@ internal class UwbCefClient : CefClient, IDisposable
 
     #region Engine Events
 
+    /// <summary>
+    /// State of input events that needs to be persisted for complex inputs like dragging
+    /// </summary>
+    private CefEventFlags Modifiers = CefEventFlags.None;
+
+    private void UpdateModifiers(MouseClickEvent mouseClickEvent)
+    {
+        var flag = mouseClickEvent.MouseClickType switch
+        {
+            MouseClickType.Left => CefEventFlags.LeftMouseButton,
+            MouseClickType.Right => CefEventFlags.RightMouseButton,
+            MouseClickType.Middle => CefEventFlags.MiddleMouseButton,
+            _ => throw new ArgumentException("Click event must be one of 3 states")
+        };
+
+        if (mouseClickEvent.MouseEventType == MouseEventType.Up)
+        {
+            Modifiers &= ~flag;
+        }
+        else
+        {
+            Modifiers |= flag;
+        }
+    }
+
+    private CefEventFlags KeyToFlag(WindowsKey key) => key switch
+    {
+        // Stateful keys
+        WindowsKey.CapsLock => CefEventFlags.CapsLockOn,
+        WindowsKey.NumLock => CefEventFlags.NumLockOn,
+
+        WindowsKey.Shift | WindowsKey.ShiftKey | WindowsKey.LShiftKey | WindowsKey.RShiftKey => CefEventFlags.ShiftDown,
+        WindowsKey.Control | WindowsKey.ControlKey | WindowsKey.LControlKey | WindowsKey.RControlKey => CefEventFlags.ControlDown,
+
+        WindowsKey.Alt => CefEventFlags.AltGrDown,
+        WindowsKey.Menu | WindowsKey.LMenu | WindowsKey.RMenu => CefEventFlags.AltDown,
+        // No support for command
+
+        _ => CefEventFlags.None
+    };
+
+    private void UpdateModifiers(KeyboardEvent keyboardEvent)
+    {
+        foreach (var key in keyboardEvent.KeysDown)
+        {
+            var flag = KeyToFlag(key);
+
+            if ((key is WindowsKey.CapsLock && ((Modifiers & CefEventFlags.CapsLockOn) != CefEventFlags.None))
+                || (key is WindowsKey.NumLock && ((Modifiers & CefEventFlags.NumLockOn) != CefEventFlags.None)))
+            {
+                Modifiers &= ~flag;
+            }
+            // Lock keys are to be set on or other keys are pressed
+            else
+            {
+                Modifiers |= flag;
+            }
+        }
+
+        foreach (var key in keyboardEvent.KeysUp)
+        {
+            var flag = KeyToFlag(key);
+
+            if (key is WindowsKey.CapsLock || key is WindowsKey.NumLock)
+            {
+                return;
+            }
+
+            Modifiers &= ~flag;
+        }
+    }
+
     private CefEventFlags GetKeyDirection(WindowsKey key) => key switch
     {
         WindowsKey.LShiftKey | WindowsKey.LControlKey | WindowsKey.LMenu => CefEventFlags.IsLeft,
-        WindowsKey.RShiftKey | WindowsKey.RControlKey | WindowsKey.RMenu => CefEventFlags.ShiftDown,
+        WindowsKey.RShiftKey | WindowsKey.RControlKey | WindowsKey.RMenu => CefEventFlags.IsRight,
         _ => CefEventFlags.None
     };
 
@@ -189,86 +261,6 @@ internal class UwbCefClient : CefClient, IDisposable
     }
 
     /// <summary>
-    /// State of mouse click events that needs to be persisted for dragging
-    /// </summary>
-    private CefEventFlags Modifiers = CefEventFlags.None;
-
-    private void UpdateModifiers(MouseClickEvent mouseClickEvent)
-    {
-        var flag = mouseClickEvent.MouseClickType switch
-        {
-            MouseClickType.Left => CefEventFlags.LeftMouseButton,
-            MouseClickType.Right => CefEventFlags.RightMouseButton,
-            MouseClickType.Middle => CefEventFlags.MiddleMouseButton,
-            _ => throw new ArgumentException("Click event must be one of 3 states")
-        };
-
-        if (mouseClickEvent.MouseEventType == MouseEventType.Up)
-        {
-            Modifiers &= ~flag;
-        }
-        else
-        {
-            Modifiers |= flag;
-        }
-    }
-
-    private CefEventFlags KeyToFlag(WindowsKey key) => key switch
-    {
-        // Stateful keys
-        WindowsKey.CapsLock => CefEventFlags.CapsLockOn,
-        WindowsKey.NumLock => CefEventFlags.NumLockOn,
-
-        WindowsKey.Shift => CefEventFlags.ShiftDown,
-        WindowsKey.ShiftKey => CefEventFlags.ShiftDown,
-        WindowsKey.LShiftKey => CefEventFlags.ShiftDown,
-        WindowsKey.RShiftKey => CefEventFlags.ShiftDown,
-
-        WindowsKey.Control => CefEventFlags.ControlDown,
-        WindowsKey.ControlKey => CefEventFlags.ControlDown,
-        WindowsKey.LControlKey => CefEventFlags.ControlDown,
-        WindowsKey.RControlKey => CefEventFlags.ControlDown,
-
-        WindowsKey.Alt => CefEventFlags.AltGrDown,
-        WindowsKey.Menu => CefEventFlags.AltDown,
-        WindowsKey.LMenu => CefEventFlags.AltDown,
-        WindowsKey.RMenu => CefEventFlags.AltDown,
-        // No support for command
-
-        _ => CefEventFlags.None
-    };
-
-    private void UpdateModifiers(KeyboardEvent keyboardEvent)
-    {
-        foreach (var key in keyboardEvent.KeysDown)
-        {
-            var flag = KeyToFlag(key);
-
-            if ((key is WindowsKey.CapsLock && ((Modifiers & CefEventFlags.CapsLockOn) != CefEventFlags.None))
-                || (key is WindowsKey.NumLock && ((Modifiers & CefEventFlags.NumLockOn) != CefEventFlags.None)))
-            {
-                Modifiers &= ~flag;
-            }
-            else
-            {
-                Modifiers |= flag;
-            }
-        }
-
-        foreach (var key in keyboardEvent.KeysUp)
-        {
-            var flag = KeyToFlag(key);
-
-            if (key is WindowsKey.CapsLock || key is WindowsKey.NumLock)
-            {
-                return;
-            }
-
-            Modifiers &= ~flag;
-        }
-    }
-
-    /// <summary>
     ///     Process a <see cref="VoltstroStudios.UnityWebBrowser.Shared.Events.MouseMoveEvent" />
     /// </summary>
     /// <param name="mouseMoveEvent"></param>
@@ -290,14 +282,17 @@ internal class UwbCefClient : CefClient, IDisposable
     {
         UpdateModifiers(mouseClickEvent);
 
-        MouseClickEvent(new CefMouseEvent
-        {
-            X = mouseClickEvent.MouseX,
-            Y = mouseClickEvent.MouseY,
-            Modifiers = Modifiers
-        }, mouseClickEvent.MouseClickCount,
+        MouseClickEvent(
+            new CefMouseEvent
+            {
+                X = mouseClickEvent.MouseX,
+                Y = mouseClickEvent.MouseY,
+                Modifiers = Modifiers
+            }, 
+            mouseClickEvent.MouseClickCount,
             (CefMouseButtonType)mouseClickEvent.MouseClickType,
-            mouseClickEvent.MouseEventType == MouseEventType.Up);
+            mouseClickEvent.MouseEventType == MouseEventType.Up
+        );
     }
 
     /// <summary>
